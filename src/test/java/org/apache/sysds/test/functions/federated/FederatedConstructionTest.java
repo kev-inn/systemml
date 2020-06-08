@@ -132,8 +132,8 @@ public class FederatedConstructionTest extends AutomatedTestBase {
 		// we need the reference file to not be written to hdfs, so we get the correct format
 		rtplatform = Types.ExecMode.SINGLE_NODE;
 		// Run reference dml script with normal matrix
-		fullDMLScriptName = HOME + testFile + "Reference.dml";
-		programArgs = new String[] {"-args", input(inputIdentifier), expected("B")};
+		fullDMLScriptName = HOME + TEST_NAME + "Reference.dml";
+		programArgs = new String[] {"-args", input("A"), expected("B")};
 		runTest(true, false, null, -1);
 
 		// reference file should not be written to hdfs
@@ -142,7 +142,7 @@ public class FederatedConstructionTest extends AutomatedTestBase {
 			DMLScript.USE_LOCAL_SPARK_CONFIG = true;
 		}
 		fullDMLScriptName = HOME + testFile + ".dml";
-		programArgs = new String[] {"-args", "\"localhost:" + port + "/" + input(inputIdentifier) + "\"",
+		programArgs = new String[] {"-args", TestUtils.federatedAddress("localhost", port, input(inputIdentifier)),
 			Integer.toString(rows), Integer.toString(cols), Integer.toString(rows * 2), output("B")};
 
 		runTest(true, false, null, -1);

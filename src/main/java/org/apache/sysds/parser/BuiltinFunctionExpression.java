@@ -1814,32 +1814,32 @@ public class BuiltinFunctionExpression extends DataIdentifier
 	}
 	
 	protected void checkMatrixFrameParam(Expression e) { //always unconditional
-		if (e.getOutput().getDataType() != DataType.MATRIX && e.getOutput().getDataType() != DataType.FRAME) {
+		if (!e.getOutput().getDataType().isMatrix() && !e.getOutput().getDataType().isFrame()) {
 			raiseValidateError("Expecting matrix or frame parameter for function "+ getOpCode(), false, LanguageErrorCodes.UNSUPPORTED_PARAMETERS);
 		}
 	}
 	
 	protected void checkMatrixScalarParam(Expression e) { //always unconditional
-		if (e.getOutput().getDataType() != DataType.MATRIX && e.getOutput().getDataType() != DataType.SCALAR) {
+		if (!e.getOutput().getDataType().isMatrix() && !e.getOutput().getDataType().isScalar()) {
 			raiseValidateError("Expecting matrix or scalar parameter for function "+ getOpCode(), false, LanguageErrorCodes.UNSUPPORTED_PARAMETERS);
 		}
 	}
 	
 	private void checkScalarParam(Expression e) { //always unconditional
-		if (e.getOutput().getDataType() != DataType.SCALAR) {
+		if (!e.getOutput().getDataType().isScalar()) {
 			raiseValidateError("Expecting scalar parameter for function " + getOpCode(), false, LanguageErrorCodes.UNSUPPORTED_PARAMETERS);
 		}
 	}
 	
 	private void checkListParam(Expression e) { //always unconditional
-		if (e.getOutput().getDataType() != DataType.LIST) {
+		if (!e.getOutput().getDataType().isList()) {
 			raiseValidateError("Expecting scalar parameter for function " + getOpCode(), false, LanguageErrorCodes.UNSUPPORTED_PARAMETERS);
 		}
 	}
 	
 	@SuppressWarnings("unused")
 	private void checkScalarFrameParam(Expression e) { //always unconditional
-		if (e.getOutput().getDataType() != DataType.SCALAR && e.getOutput().getDataType() != DataType.FRAME) {
+		if (!e.getOutput().getDataType().isScalar() && !e.getOutput().getDataType().isFrame()) {
 			raiseValidateError("Expecting scalar parameter for function " + getOpCode(), false, LanguageErrorCodes.UNSUPPORTED_PARAMETERS);
 		}
 	}

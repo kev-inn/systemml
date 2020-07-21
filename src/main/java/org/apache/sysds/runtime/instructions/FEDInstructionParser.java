@@ -19,10 +19,13 @@
 
 package org.apache.sysds.runtime.instructions;
 
+import org.apache.sysds.lops.Append;
 import org.apache.sysds.runtime.DMLRuntimeException;
 import org.apache.sysds.runtime.instructions.cp.CPInstruction;
 import org.apache.sysds.runtime.instructions.fed.AggregateBinaryFEDInstruction;
 import org.apache.sysds.runtime.instructions.fed.AggregateUnaryFEDInstruction;
+import org.apache.sysds.runtime.instructions.fed.AppendFEDInstruction;
+import org.apache.sysds.runtime.instructions.fed.BinaryFEDInstruction;
 import org.apache.sysds.runtime.instructions.fed.FEDInstruction;
 import org.apache.sysds.runtime.instructions.fed.FEDInstruction.FEDType;
 import org.apache.sysds.runtime.instructions.fed.InitFEDInstruction;
@@ -34,13 +37,21 @@ public class FEDInstructionParser extends InstructionParser
 	public static final HashMap<String, FEDType> String2FEDInstructionType;
 	static {
 		String2FEDInstructionType = new HashMap<>();
-		String2FEDInstructionType.put("fedinit", FEDType.Init);
-		
-		String2FEDInstructionType.put("ba+*",    FEDType.AggregateBinary);
-		
-		String2FEDInstructionType.put("uak+",    FEDType.AggregateUnary);
-		String2FEDInstructionType.put("uark+",   FEDType.AggregateUnary);
-		String2FEDInstructionType.put("uack+",   FEDType.AggregateUnary);
+		String2FEDInstructionType.put("fedinit",     FEDType.Init);
+
+		// Arithmetic Instruction Opcodes 
+		String2FEDInstructionType.put("+",           FEDType.Binary);
+		String2FEDInstructionType.put("-",           FEDType.Binary);
+		String2FEDInstructionType.put("*",           FEDType.Binary);
+		String2FEDInstructionType.put("/",           FEDType.Binary);
+
+		String2FEDInstructionType.put("ba+*",        FEDType.AggregateBinary);
+
+		String2FEDInstructionType.put("uak+",        FEDType.AggregateUnary);
+		String2FEDInstructionType.put("uark+",       FEDType.AggregateUnary);
+		String2FEDInstructionType.put("uack+",       FEDType.AggregateUnary);
+
+		String2FEDInstructionType.put(Append.OPCODE, FEDType.Append);
 	}
 
 	public static FEDInstruction parseSingleInstruction (String str ) {
@@ -61,10 +72,14 @@ public class FEDInstructionParser extends InstructionParser
 		switch(fedtype) {
 			case Init:
 				return InitFEDInstruction.parseInstruction(str);
+			case Binary:
+				return BinaryFEDInstruction.parseInstruction(str);
 			case AggregateBinary:
 				return AggregateBinaryFEDInstruction.parseInstruction(str);
 			case AggregateUnary:
 				return AggregateUnaryFEDInstruction.parseInstruction(str);
+			case Append:
+				return AppendFEDInstruction.parseInstruction(str);
 			default:
 				throw new DMLRuntimeException("Invalid FEDERATED Instruction Type: " + fedtype );
 		}

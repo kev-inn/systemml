@@ -28,7 +28,6 @@ import org.apache.sysds.runtime.controlprogram.caching.MatrixObject;
 import org.apache.sysds.runtime.controlprogram.context.ExecutionContext;
 import org.apache.sysds.runtime.instructions.CPInstructionParser;
 import org.apache.sysds.runtime.instructions.Instruction;
-import org.apache.sysds.runtime.instructions.fed.FEDInstructionUtils;
 import org.apache.sysds.runtime.matrix.operators.Operator;
 import org.apache.sysds.runtime.privacy.PrivacyPropagator;
 
@@ -93,9 +92,6 @@ public abstract class CPInstruction extends Instruction
 			if (DMLScript.LINEAGE)
 				ec.traceLineage(tmp);
 		}
-		
-		//robustness federated instructions (runtime assignment)
-		tmp = FEDInstructionUtils.checkAndReplaceCP(tmp, ec);
 
 		tmp = PrivacyPropagator.preprocessInstruction(tmp, ec);
 		

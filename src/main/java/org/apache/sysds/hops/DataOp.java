@@ -213,7 +213,9 @@ public class DataOp extends Hop
 				break;
 			
 			case FEDERATED:
-				//TODO 
+				//TODO
+				assert(sz == pz);
+				break;
 			default:
 				//do nothing
 		}
@@ -441,12 +443,12 @@ public class DataOp extends Hop
 			if( getDataType()==DataType.SCALAR )
 				_etypeForced = ExecType.CP;
 			
-			if( _etypeForced != null )
-			{
+			if(getInput().get(0).isFederated())
+				_etype = ExecType.FED;
+			else if(_etypeForced != null) {
 				_etype = _etypeForced;
 			}
-			else 
-			{
+			else {
 				if ( OptimizerUtils.isMemoryBasedOptLevel() ) 
 				{
 					_etype = letype;

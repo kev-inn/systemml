@@ -340,19 +340,14 @@ public class BinaryOp extends MultiThreadedHop
 		boolean cbind = op==OpOp2.CBIND;
 		
 		//sanity check for input data types
-		if( !((dt1==DataType.MATRIX && dt2==DataType.MATRIX)
-			 ||(dt1==DataType.FRAME && dt2==DataType.FRAME)
-			 ||(dt1==DataType.LIST)
-			 ||(dt1==DataType.SCALAR && dt2==DataType.SCALAR
-			   && vt1==ValueType.STRING && vt2==ValueType.STRING )) )
-		{
+		if(!((dt1.isMatrix() && dt2.isMatrix()) || (dt1.isFrame() && dt2.isFrame()) || (dt1.isList()) ||
+			(dt1.isScalar() && dt2.isScalar() && vt1 == ValueType.STRING && vt2 == ValueType.STRING))) {
 			throw new HopsException("Append can only apply to two matrices, "
 				+ "two frames, two scalar strings, or anything to a list!");
 		}
 		
 		Lop append = null;
-		if( dt1==DataType.MATRIX || dt1==DataType.FRAME )
-		{
+		if(dt1.isMatrix() || dt1.isFrame()) {
 			long rlen = cbind ? getInput().get(0).getDim1() : (getInput().get(0).dimsKnown() && getInput().get(1).dimsKnown()) ?
 				getInput().get(0).getDim1()+getInput().get(1).getDim1() : -1;
 			long clen = cbind ? ((getInput().get(0).dimsKnown() && getInput().get(1).dimsKnown()) ?
@@ -368,7 +363,7 @@ public class BinaryOp extends MultiThreadedHop
 				append.getOutputParameters().setDimensions(rlen, clen, getBlocksize(), getNnz());
 			}
 		}
-		else if( dt1==DataType.LIST ) {
+		else if(dt1.isList()) {
 			// list append is always in CP
 			long len = getInput().get(0).getLength()+1;
 			append = new Append(getInput().get(0).constructLops(), getInput().get(1).constructLops(),
@@ -393,7 +388,7 @@ public class BinaryOp extends MultiThreadedHop
 		DataType dt1 = getInput().get(0).getDataType();
 		DataType dt2 = getInput().get(1).getDataType();
 		
-		if (dt1 == dt2 && dt1 == DataType.SCALAR) {
+		if (dt1 == dt2 && dt1.isScalar()) {
 			// Both operands scalar
 			BinaryScalar binScalar1 = new BinaryScalar(getInput().get(0).constructLops(),
 				getInput().get(1).constructLops(), op, getDataType(), getValueType());
@@ -402,8 +397,8 @@ public class BinaryOp extends MultiThreadedHop
 			setLops(binScalar1);
 
 		} 
-		else if ((dt1 == DataType.MATRIX && dt2 == DataType.SCALAR)
-				   || (dt1 == DataType.SCALAR && dt2 == DataType.MATRIX)) {
+		else if ((dt1.isMatrix() && dt2.isScalar())
+				   || (dt1.isScalar() && dt2.isMatrix())) {
 
 			// One operand is Matrix and the other is scalar
 			ExecType et = optFindExecType();
@@ -441,7 +436,7 @@ public class BinaryOp extends MultiThreadedHop
 				setLineNumbers(softmax);
 				setLops(softmax);
 			}
-			else if ( et == ExecType.CP || et == ExecType.GPU ) 
+			else if ( et == ExecType.CP || et == ExecType.GPU || et == ExecType.FED )
 			{
 				Lop binary = null;
 				
@@ -693,11 +688,11 @@ public class BinaryOp extends MultiThreadedHop
 		DataType dt1 = getInput().get(0).getDataType();
 		DataType dt2 = getInput().get(1).getDataType();
 		
-		if( _etypeForced != null ) {
+		if(dt1.isFederated() || dt2.isFederated())
+			_etype = ExecType.FED;
+		else if(_etypeForced != null)
 			_etype = _etypeForced;
-		}
-		else 
-		{
+		else {
 			if ( OptimizerUtils.isMemoryBasedOptLevel() ) 
 			{
 				_etype = findExecTypeByMemEstimate();
@@ -754,16 +749,17 @@ public class BinaryOp extends MultiThreadedHop
 			_etype = ExecType.SPARK;
 		}
 		
-		//ensure cp exec type for single-node operations
-		if ( op == OpOp2.SOLVE ) {
-			if (isGPUEnabled())
-				_etype = ExecType.GPU;
-			else
+		if(_etype != ExecType.FED) {
+			// ensure cp exec type for single-node operations
+			if(op == OpOp2.SOLVE) {
+				if(isGPUEnabled())
+					_etype = ExecType.GPU;
+				else
+					_etype = ExecType.CP;
+			}
+			else if((op == OpOp2.CBIND && getDataType().isList()) || (op == OpOp2.RBIND && getDataType().isList())) {
 				_etype = ExecType.CP;
-		}
-		else if( (op == OpOp2.CBIND && getDataType().isList())
-				|| (op == OpOp2.RBIND && getDataType().isList())) {
-			_etype = ExecType.CP;
+			}
 		}
 		
 		//mark for recompile (forever)

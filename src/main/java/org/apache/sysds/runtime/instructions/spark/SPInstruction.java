@@ -23,7 +23,6 @@ import org.apache.sysds.runtime.controlprogram.context.ExecutionContext;
 import org.apache.sysds.runtime.instructions.Instruction;
 import org.apache.sysds.runtime.instructions.SPInstructionParser;
 import org.apache.sysds.runtime.instructions.cp.CPInstruction;
-import org.apache.sysds.runtime.instructions.fed.FEDInstructionUtils;
 import org.apache.sysds.runtime.matrix.operators.Operator;
 import org.apache.sysds.utils.Statistics;
 
@@ -93,9 +92,6 @@ public abstract class SPInstruction extends Instruction {
 			String updInst = CPInstruction.updateLabels(tmp.toString(), ec.getVariables());
 			tmp = SPInstructionParser.parseSingleInstruction(updInst);
 		}
-		
-		//robustness federated instructions (runtime assignment)
-		tmp = FEDInstructionUtils.checkAndReplaceSP(tmp, ec);
 		
 		return tmp;
 	}

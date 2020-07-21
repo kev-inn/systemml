@@ -600,15 +600,7 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 			processRmvarInstruction(ec, getInput1().getName());
 		
 		switch(getInput1().getDataType()) {
-			case FED_MATRIX: {
-				// TODO check correctness
-				MatrixObject obj = new MatrixObject(getInput1().getValueType(), null);
-				setCacheableDataFields(obj);
-				obj.setUpdateType(_updateType);
-				obj.setMarkForLinCache(false);
-				ec.setVariable(getInput1().getName(), obj);
-				break;
-			}
+			case FED_MATRIX: // TODO simplify and don't use options not supported for Federated matrices
 			case MATRIX: {
 				String fname = createUniqueFilename();
 				MatrixObject obj = new MatrixObject(getInput1().getValueType(), fname);
@@ -627,6 +619,7 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 				ec.setVariable(getInput1().getName(), obj);
 				break;
 			}
+			case FED_FRAME:
 			case FRAME: {
 				String fname = createUniqueFilename();
 				FrameObject fobj = new FrameObject(fname);
@@ -953,7 +946,7 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 		if( getInput1().getDataType() == DataType.SCALAR ) {
 			writeScalarToHDFS(ec, fname);
 		}
-		else if( getInput1().getDataType() == DataType.MATRIX ) {
+		else if( getInput1().getDataType().isMatrix() ) {
 			if( fmt == FileFormat.MM )
 				writeMMFile(ec, fname);
 			else if( fmt == FileFormat.CSV )
@@ -966,12 +959,12 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 			// Set privacy constraint of write instruction to the same as that of the input
 			setPrivacyConstraint(ec.getMatrixObject(getInput1().getName()).getPrivacyConstraint());
 		}
-		else if( getInput1().getDataType() == DataType.FRAME ) {
+		else if( getInput1().getDataType().isFrame() ) {
 			FrameObject mo = ec.getFrameObject(getInput1().getName());
 			mo.exportData(fname, fmtStr, _formatProperties);
 			setPrivacyConstraint(mo.getPrivacyConstraint());
 		}
-		else if( getInput1().getDataType() == DataType.TENSOR ) {
+		else if( getInput1().getDataType().isTensor() ) {
 			// TODO write tensor
 			TensorObject to = ec.getTensorObject(getInput1().getName());
 			setPrivacyConstraint(to.getPrivacyConstraint());

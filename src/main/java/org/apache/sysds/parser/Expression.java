@@ -256,9 +256,9 @@ public abstract class Expression implements ParseInfo
 			return d1;
 
 		if (cast) {
-			if (d1 == DataType.MATRIX && d2 == DataType.SCALAR)
+			if (d1.isMatrix() && d2.isScalar())
 				return DataType.MATRIX;
-			if (d1 == DataType.SCALAR && d2 == DataType.MATRIX)
+			if (d1.isScalar() && d2.isMatrix())
 				return DataType.MATRIX;
 		}
 

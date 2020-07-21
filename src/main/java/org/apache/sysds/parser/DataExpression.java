@@ -1895,12 +1895,12 @@ public class DataExpression extends DataIdentifier
 			getOutput().setFileFormat(FileFormat.BINARY);
 			StringIdentifier fedType = (StringIdentifier) exp;
 			if(fedType.getValue().equalsIgnoreCase(FED_MATRIX_IDENTIFIER)) {
-				getOutput().setDataType(DataType.MATRIX);
+				getOutput().setDataType(DataType.FED_MATRIX);
 				// TODO value type for federated object
 				getOutput().setValueType(ValueType.FP64);
 			}
 			else if(fedType.getValue().equalsIgnoreCase(FED_FRAME_IDENTIFIER)) {
-				getOutput().setDataType(DataType.FRAME);
+				getOutput().setDataType(DataType.FED_FRAME);
 			}
 			getOutput().setDimensions(-1, -1);
 			break;

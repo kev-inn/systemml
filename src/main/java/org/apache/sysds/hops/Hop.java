@@ -1007,6 +1007,10 @@ public abstract class Hop implements ParseInfo
 		return _dataType.isMatrix();
 	}
 
+	public boolean isFederated() {
+		return _dataType.isFederated();
+	}
+
 	public void setVisited() {
 		setVisited(true);
 	}

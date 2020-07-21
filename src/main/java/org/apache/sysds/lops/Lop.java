@@ -347,7 +347,7 @@ public abstract class Lop
 	}
 
 	/**
-	 * Method to get the execution type (CP, CP_FILE, MR, SPARK, GPU, INVALID) of LOP
+	 * Method to get the execution type (CP, CP_FILE, MR, SPARK, GPU, FED, INVALID) of LOP
 	 * 
 	 * @return execution type
 	 */

@@ -1790,17 +1790,17 @@ public class BuiltinFunctionExpression extends DataIdentifier
 	}
 
 	protected void checkMatrixParam(Expression e) {
-		if (e.getOutput().getDataType() != DataType.MATRIX) {
+		if (!e.getOutput().getDataType().isMatrix()) {
 			raiseValidateError("Expected " + e.getText() + " to be a matrix argument for function " +
 					this.getOpCode().toString().toLowerCase() + "().", false);
 		}
 	}
 	
 	protected void checkMatrixTensorParam(Expression e) {
-		if (e.getOutput().getDataType() != DataType.MATRIX) {
+		if (!e.getOutput().getDataType().isMatrix()) {
 			// Param is not a matrix
 			// TODO get supported Operations form builtins
-			if (e.getOutput().getDataType() != DataType.TENSOR || getOpCode() != Builtins.SUM) {
+			if (!e.getOutput().getDataType().isTensor() || getOpCode() != Builtins.SUM) {
 				// Param is also not a tensor, or the operation is not supported on tensor
 				raiseValidateError("Expected " + e.getText() + " to be a matrix or tensor argument for function "
 						+ this.getOpCode().toString().toLowerCase() + "().", false);

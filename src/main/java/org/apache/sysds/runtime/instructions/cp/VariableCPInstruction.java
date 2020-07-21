@@ -365,7 +365,7 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 			}
 
 			MetaDataFormat iimd = null;
-			if (dt == DataType.MATRIX || dt == DataType.FRAME) {
+			if (dt.isMatrix() || dt.isFrame()) {
 				DataCharacteristics mc = new MatrixCharacteristics();
 				if (parts.length == 6) {
 					// do nothing
@@ -381,7 +381,7 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 				}
 				iimd = new MetaDataFormat(mc, FileFormat.safeValueOf(fmt));
 			}
-			else if (dt == DataType.TENSOR) {
+			else if (dt.isTensor()) {
 				TensorCharacteristics tc = new TensorCharacteristics(new long[]{1, 1}, 0);
 				if (parts.length == 6) {
 					// do nothing
@@ -600,6 +600,15 @@ public class VariableCPInstruction extends CPInstruction implements LineageTrace
 			processRmvarInstruction(ec, getInput1().getName());
 		
 		switch(getInput1().getDataType()) {
+			case FED_MATRIX: {
+				// TODO check correctness
+				MatrixObject obj = new MatrixObject(getInput1().getValueType(), null);
+				setCacheableDataFields(obj);
+				obj.setUpdateType(_updateType);
+				obj.setMarkForLinCache(false);
+				ec.setVariable(getInput1().getName(), obj);
+				break;
+			}
 			case MATRIX: {
 				String fname = createUniqueFilename();
 				MatrixObject obj = new MatrixObject(getInput1().getValueType(), fname);

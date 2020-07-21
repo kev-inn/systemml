@@ -123,93 +123,102 @@ public class AggUnaryOp extends MultiThreadedHop
 			ExecType et = optFindExecType();
 			Hop input = getInput().get(0);
 			
-			if ( et == ExecType.CP || et == ExecType.GPU ) 
-			{
-				Lop agg1 = null; 
-				if( isTernaryAggregateRewriteApplicable() ) {
-					agg1 = constructLopsTernaryAggregateRewrite(et);
-				}
-				else if( isUnaryAggregateOuterCPRewriteApplicable() )
-				{
-					BinaryOp binput = (BinaryOp)getInput().get(0);
-					agg1 = new UAggOuterChain( binput.getInput().get(0).constructLops(), 
-							binput.getInput().get(1).constructLops(), _op, _direction, 
-							binput.getOp(), DataType.MATRIX, getValueType(), ExecType.CP);
-					PartialAggregate.setDimensionsBasedOnDirection(agg1, getDim1(), getDim2(), input.getBlocksize(), _direction);
-				
-					if (getDataType() == DataType.SCALAR) {
-						UnaryCP unary1 = new UnaryCP(agg1, OpOp1.CAST_AS_SCALAR,
-							getDataType(), getValueType());
-						unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
-						setLineNumbers(unary1);
-						agg1 = unary1;
+			switch(et) {
+				case FED:
+				case CP:
+				case GPU:
+					Lop agg1 = null;
+					if(isTernaryAggregateRewriteApplicable()) {
+						agg1 = constructLopsTernaryAggregateRewrite(et);
 					}
-				
-				}
-				else { //general case
-					int k = OptimizerUtils.getConstrainedNumThreads(_maxNumThreads);
-					agg1 = new PartialAggregate(input.constructLops(),
-							_op, _direction, getDataType(),getValueType(), et, k);
-				}
-				
-				setOutputDimensions(agg1);
-				setLineNumbers(agg1);
-				setLops(agg1);
-				
-				if (getDataType() == DataType.SCALAR) {
-					agg1.getOutputParameters().setDimensions(1, 1, getBlocksize(), getNnz());
-				}
+					else if(isUnaryAggregateOuterCPRewriteApplicable()) {
+						BinaryOp binput = (BinaryOp) getInput().get(0);
+						// TODO choose DataType FED_MATRIX if (once implemented) the aggregation is stored on the worker
+						agg1 = new UAggOuterChain(binput.getInput().get(0).constructLops(),
+							binput.getInput().get(1).constructLops(), _op, _direction, binput.getOp(), DataType.MATRIX,
+							getValueType(), et == ExecType.GPU ? ExecType.CP : et);
+						PartialAggregate.setDimensionsBasedOnDirection(agg1,
+							getDim1(),
+							getDim2(),
+							input.getBlocksize(),
+							_direction);
+
+						if(getDataType() == DataType.SCALAR) {
+							UnaryCP unary1 = new UnaryCP(agg1, OpOp1.CAST_AS_SCALAR, getDataType(), getValueType());
+							unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
+							setLineNumbers(unary1);
+							agg1 = unary1;
+						}
+
+					}
+					else { // general case
+						int k = OptimizerUtils.getConstrainedNumThreads(_maxNumThreads);
+						agg1 = new PartialAggregate(input.constructLops(), _op, _direction, getDataType(),
+							getValueType(), et, k);
+					}
+
+					setOutputDimensions(agg1);
+					setLineNumbers(agg1);
+					setLops(agg1);
+
+					if(getDataType() == DataType.SCALAR) {
+						agg1.getOutputParameters().setDimensions(1, 1, getBlocksize(), getNnz());
+					}
+					break;
+				case SPARK:
+					// unary aggregate
+					if(isTernaryAggregateRewriteApplicable()) {
+						Lop aggregate = constructLopsTernaryAggregateRewrite(et);
+						setOutputDimensions(aggregate); // 0x0 (scalar)
+						setLineNumbers(aggregate);
+						setLops(aggregate);
+					}
+					else if(isUnaryAggregateOuterSPRewriteApplicable()) {
+						BinaryOp binput = (BinaryOp) getInput().get(0);
+						Lop transform1 = new UAggOuterChain(binput.getInput().get(0).constructLops(),
+							binput.getInput().get(1).constructLops(), _op, _direction, binput.getOp(), DataType.MATRIX,
+							getValueType(), ExecType.SPARK);
+						PartialAggregate.setDimensionsBasedOnDirection(transform1,
+							getDim1(),
+							getDim2(),
+							input.getBlocksize(),
+							_direction);
+						setLineNumbers(transform1);
+						setLops(transform1);
+
+						if(getDataType() == DataType.SCALAR) {
+							UnaryCP unary1 = new UnaryCP(transform1, OpOp1.CAST_AS_SCALAR, getDataType(),
+								getValueType());
+							unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
+							setLineNumbers(unary1);
+							setLops(unary1);
+						}
+
+					}
+					else // default
+					{
+						boolean needAgg = requiresAggregation(input, _direction);
+						SparkAggType aggtype = getSparkUnaryAggregationType(needAgg);
+
+						PartialAggregate aggregate = new PartialAggregate(input.constructLops(), _op, _direction,
+							input._dataType, getValueType(), aggtype, et);
+						aggregate.setDimensionsBasedOnDirection(getDim1(), getDim2(), input.getBlocksize());
+						setLineNumbers(aggregate);
+						setLops(aggregate);
+
+						if(getDataType() == DataType.SCALAR) {
+							UnaryCP unary1 = new UnaryCP(aggregate, OpOp1.CAST_AS_SCALAR, getDataType(),
+								getValueType());
+							unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
+							setLineNumbers(unary1);
+							setLops(unary1);
+						}
+					}
+					break;
+				default:
+					throw new HopsException("AggUnary Hop with invalid execution type: " + et.name());
 			}
-			else if( et == ExecType.SPARK )
-			{
-				//unary aggregate
-				if( isTernaryAggregateRewriteApplicable() ) 
-				{
-					Lop aggregate = constructLopsTernaryAggregateRewrite(et);
-					setOutputDimensions(aggregate); //0x0 (scalar)
-					setLineNumbers(aggregate);
-					setLops(aggregate);
-				}
-				else if( isUnaryAggregateOuterSPRewriteApplicable() ) 
-				{
-					BinaryOp binput = (BinaryOp)getInput().get(0);
-					Lop transform1 = new UAggOuterChain( binput.getInput().get(0).constructLops(), 
-							binput.getInput().get(1).constructLops(), _op, _direction, 
-							binput.getOp(), DataType.MATRIX, getValueType(), ExecType.SPARK);
-					PartialAggregate.setDimensionsBasedOnDirection(transform1, getDim1(), getDim2(), input.getBlocksize(), _direction);
-					setLineNumbers(transform1);
-					setLops(transform1);
-				
-					if (getDataType() == DataType.SCALAR) {
-						UnaryCP unary1 = new UnaryCP(transform1,
-							OpOp1.CAST_AS_SCALAR, getDataType(), getValueType());
-						unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
-						setLineNumbers(unary1);
-						setLops(unary1);
-					}
-				
-				}
-				else //default
-				{
-					boolean needAgg = requiresAggregation(input, _direction);
-					SparkAggType aggtype = getSparkUnaryAggregationType(needAgg);
-					
-					PartialAggregate aggregate = new PartialAggregate(input.constructLops(), 
-						_op, _direction, input._dataType, getValueType(), aggtype, et);
-					aggregate.setDimensionsBasedOnDirection(getDim1(), getDim2(), input.getBlocksize());
-					setLineNumbers(aggregate);
-					setLops(aggregate);
-				
-					if (getDataType() == DataType.SCALAR) {
-						UnaryCP unary1 = new UnaryCP(aggregate, 
-							OpOp1.CAST_AS_SCALAR, getDataType(), getValueType());
-						unary1.getOutputParameters().setDimensions(0, 0, 0, -1);
-						setLineNumbers(unary1);
-						setLops(unary1);
-					}
-				}
-			}
-		} 
+		}
 		catch (Exception e) {
 			throw new HopsException(this.printErrorLocation() + "In AggUnary Hop, error constructing Lops " , e);
 		}
@@ -345,14 +354,16 @@ public class AggUnaryOp extends MultiThreadedHop
 		
 		ExecType REMOTE = ExecType.SPARK;
 		
-		//forced / memory-based / threshold-based decision
-		if( _etypeForced != null )
+		if(getInput().get(0).isFederated()) {
+			_etype = ExecType.FED;
+		}
+		else if(_etypeForced != null) // forced / memory-based / threshold-based decision
 		{
 			_etype = _etypeForced;
 		}
 		else
 		{
-			if ( OptimizerUtils.isMemoryBasedOptLevel() ) 
+			if ( OptimizerUtils.isMemoryBasedOptLevel() )
 			{
 				_etype = findExecTypeByMemEstimate();
 			}

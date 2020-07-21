@@ -29,7 +29,7 @@ import static org.apache.sysds.parser.DataExpression.FED_RANGES;
 import static org.apache.sysds.parser.DataExpression.FED_TYPE;
 
 public class Federated extends Lop {
-	private Lop _type, _addresses, _ranges;
+	private final Lop _type, _addresses, _ranges;
 	
 	public Federated(HashMap<String, Lop> inputLops, DataType dataType, ValueType valueType) {
 		super(Type.Federated, dataType, valueType);

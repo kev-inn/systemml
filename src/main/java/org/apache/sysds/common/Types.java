@@ -43,22 +43,25 @@ public class Types
 	 * Data types (tensor, matrix, scalar, frame, object, unknown).
 	 */
 	public enum DataType {
-		TENSOR, MATRIX, SCALAR, FRAME, LIST, UNKNOWN;
+		TENSOR, MATRIX, SCALAR, FRAME, LIST, FED_MATRIX, FED_FRAME, UNKNOWN;
 		
 		public boolean isMatrix() {
-			return this == MATRIX;
+			return this == MATRIX || this == FED_MATRIX;
 		}
 		public boolean isTensor() {
 			return this == TENSOR;
 		}
 		public boolean isFrame() {
-			return this == FRAME;
+			return this == FRAME || this == FED_FRAME;
 		}
 		public boolean isScalar() {
 			return this == SCALAR;
 		}
 		public boolean isList() {
 			return this == LIST;
+		}
+		public boolean isFederated() {
+			return this == FED_MATRIX || this == FED_FRAME;
 		}
 		public boolean isUnknown() {
 			return this == UNKNOWN;

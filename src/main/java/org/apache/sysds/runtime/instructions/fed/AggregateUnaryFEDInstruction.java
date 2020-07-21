@@ -60,7 +60,7 @@ public class AggregateUnaryFEDInstruction extends UnaryFEDInstruction {
 		
 		AggregateUnaryOperator au_op = (AggregateUnaryOperator) _optr;
 		MatrixObject matrixObject;
-		if (input1.getDataType() == DataType.MATRIX &&
+		if (input1.getDataType().isMatrix() && input1.getDataType().isFederated() &&
 				(matrixObject = ec.getMatrixObject(input1.getName())).isFederated()) {
 			MatrixBlock outMatrix = LibFederatedAgg.aggregateUnaryMatrix(matrixObject, au_op);
 			

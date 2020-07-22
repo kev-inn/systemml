@@ -53,6 +53,8 @@ import org.apache.sysds.runtime.meta.MetaDataFormat;
 import org.apache.sysds.runtime.privacy.DMLPrivacyException;
 import org.apache.sysds.runtime.privacy.PrivacyMonitor;
 import org.apache.sysds.runtime.privacy.PrivacyPropagator;
+import org.apache.sysds.runtime.transform.decode.Decoder;
+import org.apache.sysds.runtime.transform.decode.DecoderFactory;
 import org.apache.sysds.runtime.transform.encode.Encoder;
 import org.apache.sysds.runtime.transform.encode.EncoderFactory;
 import org.apache.sysds.utils.JSONHelper;
@@ -130,6 +132,8 @@ public class FederatedWorkerHandler extends ChannelInboundHandlerAdapter {
 					return createFrameEncoder(request);
 				case FRAME_ENCODE:
 					return executeFrameEncode(request);
+				case DECODE:
+					return decodeMatrix(request);
 				default:
 					String message = String.format("Method %s is not supported.", method);
 					return new FederatedResponse(FederatedResponse.Type.ERROR, new FederatedWorkerHandlerException(message));
@@ -141,10 +145,50 @@ public class FederatedWorkerHandler extends ChannelInboundHandlerAdapter {
 		catch (Exception exception) {
 			return new FederatedResponse(FederatedResponse.Type.ERROR,
 				new FederatedWorkerHandlerException("Exception of type "
-				+ exception.getClass() + " thrown when processing request"));
+				+ exception.getClass() + " thrown when processing request: " + exception.getMessage()));
 		}
 	}
-
+	
+	private FederatedResponse decodeMatrix(FederatedRequest request) {
+		// param parsing
+		checkNumParams(request.getNumParams(), 4);
+		FrameBlock meta = (FrameBlock) request.getParam(0);
+		String spec = (String) request.getParam(1);
+		int globalOffset = (int) request.getParam(2);
+		long varID = (long) request.getParam(3);
+		
+		MatrixObject mo = (MatrixObject) PrivacyMonitor.handlePrivacy(_vars.get(varID));
+		MatrixBlock data = mo.acquireRead();
+		String[] colNames = meta.getColumnNames();
+		
+		// compute transformdecode
+		Decoder decoder = DecoderFactory.createDecoder(spec,
+			colNames,
+			null,
+			meta,
+			data.getNumColumns(),
+			globalOffset,
+			globalOffset + data.getNumColumns());
+		FrameBlock fbout = decoder.decode(data, new FrameBlock(decoder.getSchema()));
+		fbout.setColumnNames(Arrays.copyOfRange(colNames, 0, fbout.getNumColumns()));
+		
+		// copy characteristics
+		MatrixCharacteristics mc = new MatrixCharacteristics(mo.getDataCharacteristics());
+		FrameObject fo = new FrameObject(OptimizerUtils.getUniqueTempFileName(),
+			new MetaDataFormat(mc, FileFormat.BINARY));
+		// set the encoded data
+		fo.acquireModify(fbout);
+		fo.release();
+		mo.release();
+		
+		// create a new id handle
+		long id = _seq.getNextID();
+		// add it to the list of variables
+		_vars.put(id, fo);
+		// return id handle
+		return new FederatedResponse(FederatedResponse.Type.SUCCESS, new Object[] {id, fo.getSchema()});
+	}
+	
 	private FederatedResponse createFrameEncoder(FederatedRequest request) {
 		// param parsing
 		checkNumParams(request.getNumParams(), 3);

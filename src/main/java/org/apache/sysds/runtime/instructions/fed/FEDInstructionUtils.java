@@ -76,6 +76,17 @@ public class FEDInstructionUtils {
 				}
 			}
 		}
+		else if (inst instanceof ParameterizedBuiltinCPInstruction) {
+			ParameterizedBuiltinCPInstruction instruction = (ParameterizedBuiltinCPInstruction) inst;
+			String opcode = instruction.getOpcode();
+			if(opcode.equals("transformdecode")) {
+				CacheableData<?> fo = ec.getCacheableData(instruction.getParam("target"));
+				if(fo.isFederated()) {
+					return ParameterizedBuiltinFEDInstruction
+							.parseInstruction(instruction.getInstructionString());
+				}
+			}
+		}
 		return inst;
 	}
 	

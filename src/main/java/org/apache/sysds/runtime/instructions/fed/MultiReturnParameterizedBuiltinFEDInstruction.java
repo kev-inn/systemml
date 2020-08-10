@@ -41,6 +41,7 @@ import org.apache.sysds.runtime.matrix.data.FrameBlock;
 import org.apache.sysds.runtime.matrix.operators.Operator;
 import org.apache.sysds.runtime.transform.encode.Encoder;
 import org.apache.sysds.runtime.transform.encode.EncoderComposite;
+import org.apache.sysds.runtime.transform.encode.EncoderDummycode;
 import org.apache.sysds.runtime.transform.encode.EncoderPassThrough;
 import org.apache.sysds.runtime.transform.encode.EncoderRecode;
 import org.apache.sysds.runtime.util.CommonThreadPool;
@@ -87,7 +88,7 @@ public class MultiReturnParameterizedBuiltinFEDInstruction extends ComputationFE
 
 		// the encoder in which the complete encoding information will be aggregated
 		EncoderComposite globalEncoder = new EncoderComposite(
-			Arrays.asList(new EncoderRecode(), new EncoderPassThrough()));
+			Arrays.asList(new EncoderRecode(), new EncoderPassThrough(), new EncoderDummycode()));
 		// first create encoders at the federated workers, then collect them and aggregate them to a single large
 		// encoder
 		CommonThreadPool pool = new CommonThreadPool(CommonThreadPool.get(fedMapping.size()));
@@ -110,13 +111,19 @@ public class MultiReturnParameterizedBuiltinFEDInstruction extends ComputationFE
 
 		// construct a federated matrix with the encoded data
 		MatrixObject transformedMat = ec.getMatrixObject(getOutput(0));
-		transformedMat.getDataCharacteristics().set(fin.getDataCharacteristics());
+		long nr = 0, nc = 0;
+		for (FederatedRange range : transformedFedMapping.keySet()) {
+			nr = Long.max(nr, range.getEndDims()[0]);
+			nc = Long.max(nc, range.getEndDims()[1]);
+		}
+		transformedMat.getDataCharacteristics().setRows(nr);
+		transformedMat.getDataCharacteristics().setCols(nc);
 		// set the federated mapping for the matrix
 		transformedMat.setFedMapping(transformedFedMapping);
 
 		// release input and outputs
 		ec.setFrameOutput(getOutput(1).getName(),
-			globalEncoder.getMetaData(new FrameBlock(globalEncoder.getNumCols(), Types.ValueType.STRING)));
+			globalEncoder.getMetaData(new FrameBlock((int) fin.getNumColumns(), Types.ValueType.STRING)));
 	}
 
 	private static class FederatedCreateEncoderTask implements Callable<Void> {
@@ -159,10 +166,10 @@ public class MultiReturnParameterizedBuiltinFEDInstruction extends ComputationFE
 	private static class FederatedEncodeTask implements Callable<Void> {
 		private final FederatedRange _range;
 		private final FederatedData _data;
-		private final Encoder _globalEncoder;
+		private final EncoderComposite _globalEncoder;
 		private final Map<FederatedRange, FederatedData> _resultMapping;
 
-		public FederatedEncodeTask(FederatedRange range, FederatedData data, Encoder globalEncoder,
+		public FederatedEncodeTask(FederatedRange range, FederatedData data, EncoderComposite globalEncoder,
 			Map<FederatedRange, FederatedData> resultMapping) {
 			_range = range;
 			_data = data;
@@ -172,8 +179,15 @@ public class MultiReturnParameterizedBuiltinFEDInstruction extends ComputationFE
 
 		@Override
 		public Void call() throws Exception {
-			int colStart = (int) _range.getBeginDims()[1] + 1;
-			int colEnd = (int) _range.getEndDims()[1] + 1;
+			// copy because we reuse it
+			long[] beginDims = Arrays.copyOf(_range.getBeginDims(), _range.getBeginDims().length);
+			long[] endDims = Arrays.copyOf(_range.getEndDims(), _range.getEndDims().length);
+			int colStart = (int) beginDims[1] + 1;
+			int colEnd = (int) endDims[1] + 1;
+			
+			// update begin end dims (column part) considering columns added by dummycoding
+			_globalEncoder.updateIndexRanges(beginDims, endDims);
+			
 			// get the encoder segment that is relevant for this federated worker
 			Encoder encoder = _globalEncoder.subRangeEncoder(colStart, colEnd);
 
@@ -182,7 +196,7 @@ public class MultiReturnParameterizedBuiltinFEDInstruction extends ComputationFE
 				.get();
 			long varId = (long) response.getData()[0];
 			synchronized(_resultMapping) {
-				_resultMapping.put(new FederatedRange(_range), new FederatedData(_data, varId));
+				_resultMapping.put(new FederatedRange(beginDims, endDims), new FederatedData(_data, varId));
 			}
 			return null;
 		}

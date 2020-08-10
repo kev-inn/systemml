@@ -20,13 +20,13 @@
 package org.apache.sysds.runtime.instructions.fed;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 
-import org.apache.sysds.common.Types;
 import org.apache.sysds.lops.Lop;
 import org.apache.sysds.runtime.DMLRuntimeException;
 import org.apache.sysds.runtime.controlprogram.caching.FrameObject;
@@ -41,6 +41,8 @@ import org.apache.sysds.runtime.instructions.InstructionUtils;
 import org.apache.sysds.runtime.instructions.cp.CPOperand;
 import org.apache.sysds.runtime.matrix.data.FrameBlock;
 import org.apache.sysds.runtime.matrix.operators.Operator;
+import org.apache.sysds.runtime.transform.decode.Decoder;
+import org.apache.sysds.runtime.transform.decode.DecoderFactory;
 import org.apache.sysds.runtime.util.CommonThreadPool;
 
 public class ParameterizedBuiltinFEDInstruction extends ComputationFEDInstruction {
@@ -103,21 +105,24 @@ public class ParameterizedBuiltinFEDInstruction extends ComputationFEDInstructio
 			FrameBlock meta = ec.getFrameInput(params.get("meta"));
 			String spec = params.get("spec");
 
+			Decoder decoder = DecoderFactory
+				.createDecoder(spec, meta.getColumnNames(), null, meta, (int) data.getNumColumns());
+
 			Map<FederatedRange, FederatedData> fedMapping = data.getFedMapping();
 
 			ExecutorService pool = CommonThreadPool.get(fedMapping.size());
-			Types.ValueType[] schema = new Types.ValueType[(int) data.getNumColumns()];
 			Map<FederatedRange, FederatedData> decodedMapping = new HashMap<>();
 			ArrayList<FederatedDecodeTask> createTasks = new ArrayList<>();
 			for(Map.Entry<FederatedRange, FederatedData> fedMap : fedMapping.entrySet())
 				createTasks
-					.add(new FederatedDecodeTask(fedMap.getKey(), fedMap.getValue(), meta, spec, decodedMapping, schema));
+					.add(new FederatedDecodeTask(fedMap.getKey(), fedMap.getValue(), decoder, meta, decodedMapping));
 			CommonThreadPool.invokeAndShutdown(pool, createTasks);
 
 			// construct a federated matrix with the encoded data
 			FrameObject decodedFrame = ec.getFrameObject(output);
-			decodedFrame.setSchema(schema);
+			decodedFrame.setSchema(decoder.getSchema());
 			decodedFrame.getDataCharacteristics().set(data.getDataCharacteristics());
+			decodedFrame.getDataCharacteristics().setCols(decoder.getSchema().length);
 			// set the federated mapping for the matrix
 			decodedFrame.setFedMapping(decodedMapping);
 
@@ -132,43 +137,54 @@ public class ParameterizedBuiltinFEDInstruction extends ComputationFEDInstructio
 	private static class FederatedDecodeTask implements Callable<Void> {
 		private final FederatedRange _range;
 		private final FederatedData _data;
+		private final Decoder _globalDecoder;
 		private final FrameBlock _meta;
-		private final String _spec;
 		private final Map<FederatedRange, FederatedData> _resultMapping;
-		private final Types.ValueType[] _schema;
 
-		public FederatedDecodeTask(FederatedRange range, FederatedData data, FrameBlock meta, String spec,
-			Map<FederatedRange, FederatedData> resultMapping, Types.ValueType[] schema) {
+		public FederatedDecodeTask(FederatedRange range, FederatedData data, Decoder globalDecoder, FrameBlock meta,
+			Map<FederatedRange, FederatedData> resultMapping) {
 			_range = range;
 			_data = data;
+			_globalDecoder = globalDecoder;
 			_meta = meta;
-			_spec = spec;
 			_resultMapping = resultMapping;
-			_schema = schema;
 		}
 
 		@Override
 		public Void call() throws Exception {
-			int columnOffset = (int) _range.getBeginDims()[1] + 1;
+			// compute the range in the decoded FrameBlock, this encoded range aligns to
+			long[] beginDims = Arrays.copyOf(_range.getBeginDims(), _range.getBeginDims().length);
+			long[] endDims = Arrays.copyOf(_range.getEndDims(), _range.getEndDims().length);
+			int colStartBefore = (int) beginDims[1];
 
+			// update begin end dims (column part) considering columns added by dummycoding
+			_globalDecoder.updateIndexRanges(beginDims, endDims);
+			/*
+			 * int lowerColDest = (int) _range.getBeginDims()[1] + 1; int upperColDest = (int) _range.getEndDims()[1] +
+			 * 1; int dummycodedOffset = 0; for(int i = 0, dcColCounter = 1; dcColCounter < upperColDest; i++,
+			 * dcColCounter++) { long numDistinct = _meta.getColumnMetadata(i).getNumDistinct();
+			 * 
+			 * if(dcColCounter < lowerColDest) { if(numDistinct > 0) { dummycodedOffset += numDistinct; lowerColDest -=
+			 * numDistinct - 1; } else dummycodedOffset++; }
+			 * 
+			 * if(numDistinct > 0) upperColDest -= numDistinct - 1; dcColCounter += numDistinct; }
+			 */
 			FrameBlock meta = new FrameBlock();
 			synchronized(_meta) {
-				_meta.slice(0, _meta.getNumRows() - 1, columnOffset - 1, (int) _range.getEndDims()[1] - 1, meta);
+				_meta.slice(0, _meta.getNumRows() - 1, (int) beginDims[1], (int) endDims[1] - 1, meta);
 			}
 
-			FederatedResponse response = _data.executeFederatedOperation(
-				new FederatedRequest(FederatedRequest.FedMethod.DECODE, meta, _spec, columnOffset),
-				true).get();
+			// get the decoder segment that is relevant for this federated worker
+			Decoder decoder = _globalDecoder
+				.subRangeDecoder((int) beginDims[1] + 1, (int) endDims[1] + 1, colStartBefore);
+
+			FederatedResponse response = _data
+				.executeFederatedOperation(new FederatedRequest(FederatedRequest.FedMethod.DECODE, decoder, meta), true)
+				.get();
 
 			long varId = (long) response.getData()[0];
 			synchronized(_resultMapping) {
-				_resultMapping.put(new FederatedRange(_range), new FederatedData(_data, varId));
-			}
-			Types.ValueType[] subSchema = (Types.ValueType[]) response.getData()[1];
-			synchronized (_schema) {
-				// It would be possible to assert that different federated workers don't give different value types
-				// for the same columns, but the performance impact is not worth the effort
-				System.arraycopy(subSchema, 0, _schema, columnOffset - 1, subSchema.length);
+				_resultMapping.put(new FederatedRange(beginDims, endDims), new FederatedData(_data, varId));
 			}
 			return null;
 		}

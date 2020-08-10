@@ -213,6 +213,16 @@ public class EncoderRecode extends Encoder
 		}
 		super.mergeAt(other, col);
 	}
+	
+	public int[] numDistinctValues() {
+		int[] numDistinct = new int[_colList.length];
+		
+		for( int j=0; j<_colList.length; j++ ) {
+			int colID = _colList[j]; //1-based
+			numDistinct[j] = _rcdMaps.get(colID).size();
+		}
+		return numDistinct;
+	}
 
 	@Override
 	public FrameBlock getMetaData(FrameBlock meta) {

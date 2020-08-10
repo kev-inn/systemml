@@ -134,7 +134,7 @@ public abstract class Encoder implements Serializable
 	 */
 	public Encoder subRangeEncoder(int colStart, int colEnd) {
 		throw new DMLRuntimeException(
-			this.getClass().getName() + " does not support the creation of a sub-range encoder");
+			this.getClass().getSimpleName() + " does not support the creation of a sub-range encoder");
 	}
 
 	/**
@@ -145,8 +145,8 @@ public abstract class Encoder implements Serializable
 	 */
 	protected void mergeColumnInfo(Encoder other, int col) {
 		// update number of columns
-		if(col - 1 + other.getNumCols() > _colList.length)
-			_clen = col - 1 + other.getNumCols();
+		if(col - 1 + other._clen > _clen)
+			_clen = col - 1 + other._clen;
 
 		// update the new columns that this encoder operates on
 		Set<Integer> colListAgg = new HashSet<>();
@@ -168,6 +168,16 @@ public abstract class Encoder implements Serializable
 	public void mergeAt(Encoder other, int col) {
 		throw new DMLRuntimeException(
 			this.getClass().getName() + " does not support merging with " + other.getClass().getName());
+	}
+	
+	/**
+	 * Update index-ranges to after encoding. Note that only Dummycoding changes the ranges.
+	 *
+	 * @param beginDims the begin indexes before encoding
+	 * @param endDims   the end indexes before encoding
+	 */
+	public void updateIndexRanges(long[] beginDims, long[] endDims) {
+		// do nothing - default
 	}
 
 	/**

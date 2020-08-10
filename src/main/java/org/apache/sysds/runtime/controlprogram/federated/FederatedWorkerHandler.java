@@ -54,7 +54,6 @@ import org.apache.sysds.runtime.privacy.DMLPrivacyException;
 import org.apache.sysds.runtime.privacy.PrivacyMonitor;
 import org.apache.sysds.runtime.privacy.PrivacyPropagator;
 import org.apache.sysds.runtime.transform.decode.Decoder;
-import org.apache.sysds.runtime.transform.decode.DecoderFactory;
 import org.apache.sysds.runtime.transform.encode.Encoder;
 import org.apache.sysds.runtime.transform.encode.EncoderFactory;
 import org.apache.sysds.utils.JSONHelper;
@@ -151,29 +150,21 @@ public class FederatedWorkerHandler extends ChannelInboundHandlerAdapter {
 	
 	private FederatedResponse decodeMatrix(FederatedRequest request) {
 		// param parsing
-		checkNumParams(request.getNumParams(), 4);
-		FrameBlock meta = (FrameBlock) request.getParam(0);
-		String spec = (String) request.getParam(1);
-		int globalOffset = (int) request.getParam(2);
-		long varID = (long) request.getParam(3);
+		checkNumParams(request.getNumParams(), 3);
+		Decoder decoder = (Decoder) request.getParam(0);
+		FrameBlock meta = (FrameBlock) request.getParam(1);
+		long varID = (long) request.getParam(2);
 		
 		MatrixObject mo = (MatrixObject) PrivacyMonitor.handlePrivacy(_vars.get(varID));
 		MatrixBlock data = mo.acquireRead();
 		String[] colNames = meta.getColumnNames();
 		
 		// compute transformdecode
-		Decoder decoder = DecoderFactory.createDecoder(spec,
-			colNames,
-			null,
-			meta,
-			data.getNumColumns(),
-			globalOffset,
-			globalOffset + data.getNumColumns());
 		FrameBlock fbout = decoder.decode(data, new FrameBlock(decoder.getSchema()));
 		fbout.setColumnNames(Arrays.copyOfRange(colNames, 0, fbout.getNumColumns()));
 		
 		// copy characteristics
-		MatrixCharacteristics mc = new MatrixCharacteristics(mo.getDataCharacteristics());
+		MatrixCharacteristics mc = new MatrixCharacteristics(fbout.getNumRows(), fbout.getNumColumns());
 		FrameObject fo = new FrameObject(OptimizerUtils.getUniqueTempFileName(),
 			new MetaDataFormat(mc, FileFormat.BINARY));
 		// set the encoded data
